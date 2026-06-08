@@ -4,12 +4,16 @@ set(FFVA_INT_COMPILE_DEFINITIONS
     appconfEXTERNAL_MCLK=1
     appconfI2S_ENABLED=1
     appconfUSB_ENABLED=0
+    appconfUSB_DFU_ENABLED=1
     appconfAEC_REF_DEFAULT=appconfAEC_REF_I2S
     appconfI2S_MODE=appconfI2S_MODE_SLAVE
     appconfI2S_AUDIO_SAMPLE_RATE=48000
     appconfRECOVER_MCLK_I2S_APP_PLL=1
     MIC_ARRAY_CONFIG_MCLK_FREQ=12288000
 )
+
+set(FFVA_INT_BOARD_TARGET sln_voice::app::ffva::respeaker_lite)
+set(FFVA_INT_BOOT_PARTITION_SIZE 0x200000)
 
 query_tools_version()
 foreach(FFVA_AP ${FFVA_PIPELINES_INT})
@@ -29,7 +33,7 @@ foreach(FFVA_AP ${FFVA_PIPELINES_INT})
     target_link_libraries(${TARGET_NAME}
         PUBLIC
             ${APP_COMMON_LINK_LIBRARIES}
-            sln_voice::app::ffva::xk_voice_l71
+            ${FFVA_INT_BOARD_TARGET}
             sln_voice::app::ffva::ap::${FFVA_AP}
     )
     target_link_options(${TARGET_NAME} PRIVATE ${APP_LINK_OPTIONS})
@@ -48,7 +52,7 @@ foreach(FFVA_AP ${FFVA_PIPELINES_INT})
     target_link_libraries(${TARGET_NAME}
         PUBLIC
             ${APP_COMMON_LINK_LIBRARIES}
-            sln_voice::app::ffva::xk_voice_l71
+            ${FFVA_INT_BOARD_TARGET}
             sln_voice::app::ffva::ap::${FFVA_AP}
     )
     target_link_options(${TARGET_NAME} PRIVATE ${APP_LINK_OPTIONS})
@@ -115,7 +119,7 @@ foreach(FFVA_AP ${FFVA_PIPELINES_INT})
 
     create_flash_app_target(
         #[[ Target ]]                  ${TARGET_NAME}
-        #[[ Boot Partition Size ]]     0x100000
+        #[[ Boot Partition Size ]]     ${FFVA_INT_BOOT_PARTITION_SIZE}
         #[[ Data Partition Contents ]] ${DATA_PARTITION_FILE}
         #[[ Dependencies ]]            ${DATA_PARTITION_FILE}
     )

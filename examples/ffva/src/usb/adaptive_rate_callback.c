@@ -8,8 +8,9 @@
 #define STORED_PER_SECOND 4
 
 #if __xcore__
-#include "tusb_config.h"
 #include "app_conf.h"
+#if appconfUSB_ENABLED
+#include "tusb_config.h"
 #include "xmath/xmath.h"
 #define EXPECTED_OUT_BYTES_PER_TRANSACTION (CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * \
                                        CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX * \
@@ -17,11 +18,16 @@
 #define EXPECTED_IN_BYTES_PER_TRANSACTION  (CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * \
                                        CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX * \
                                        appconfUSB_AUDIO_SAMPLE_RATE / 1000)
+#else
+#define ADAPTIVE_RATE_CALLBACK_DISABLED 1
+#endif
 #else //__xcore__
 // If we're compiling this for x86 we're probably testing it - just assume some values
 #define EXPECTED_OUT_BYTES_PER_TRANSACTION  128 //16kbps * 16-bit * 4ch
 #define EXPECTED_IN_BYTES_PER_TRANSACTION   192 //16kbps * 16-bit * 6ch
 #endif //__xcore__
+
+#ifndef ADAPTIVE_RATE_CALLBACK_DISABLED
 
 #define TOTAL_STORED (TOTAL_TAIL_SECONDS * STORED_PER_SECOND)
 #define REF_CLOCK_TICKS_PER_SECOND 100000000
@@ -236,3 +242,5 @@ void sof_toggle()
         }
     }
 }
+
+#endif /* ADAPTIVE_RATE_CALLBACK_DISABLED */

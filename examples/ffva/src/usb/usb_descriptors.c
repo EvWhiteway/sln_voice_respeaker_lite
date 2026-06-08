@@ -31,7 +31,13 @@
 #define USB_VID                  0x2886
 #define USB_PID                  0x0019
 #define USB_BCD                  0x0201
+#if appconfUSB_ENABLED
 #define USB_DEVICE_VERSION_BCD   0x0212
+#elif appconfUSB_DFU_ENABLED
+#define USB_DEVICE_VERSION_BCD   0x0216
+#else
+#define USB_DEVICE_VERSION_BCD   0x0212
+#endif
 #define USB_VENDOR_STR           "Seeed Studio"
 #define USB_PRODUCT_STR          "ReSpeaker Lite"
 #define USB_SERIAL_STR           "0000000001"
@@ -45,6 +51,20 @@
 #define USB_SERIAL_STR           "123456"
 #endif
 
+#if appconfUSB_DFU_ENABLED && !appconfUSB_ENABLED
+#define USB_DEVICE_CLASS         TUSB_CLASS_MISC
+#define USB_DEVICE_SUBCLASS      MISC_SUBCLASS_COMMON
+#define USB_DEVICE_PROTOCOL      MISC_PROTOCOL_IAD
+#define DFU_IAD_LEN              8
+#define DFU_PLACEHOLDER_LEN      9
+#else
+#define USB_DEVICE_CLASS         TUSB_CLASS_UNSPECIFIED
+#define USB_DEVICE_SUBCLASS      TUSB_CLASS_UNSPECIFIED
+#define USB_DEVICE_PROTOCOL      TUSB_CLASS_UNSPECIFIED
+#define DFU_IAD_LEN              0
+#define DFU_PLACEHOLDER_LEN      0
+#endif
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -53,9 +73,9 @@ tusb_desc_device_t const desc_device = {
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = USB_BCD,   // For BOS descriptor! https://microchip.my.site.com/s/article/Does-a-USB2-1-Specification-Exist
 
-    .bDeviceClass       = TUSB_CLASS_UNSPECIFIED,
-    .bDeviceSubClass    = TUSB_CLASS_UNSPECIFIED,
-    .bDeviceProtocol    = TUSB_CLASS_UNSPECIFIED,
+    .bDeviceClass       = USB_DEVICE_CLASS,
+    .bDeviceSubClass    = USB_DEVICE_SUBCLASS,
+    .bDeviceProtocol    = USB_DEVICE_PROTOCOL,
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = USB_VID,
@@ -85,7 +105,6 @@ uint8_t const* tud_descriptor_device_cb(void)
 
 // MSOS 2.0 descriptor copied from the examples in https://github.com/xmos/xcore_iot/blob/develop/test/usb/tinyusb_demos/webusb_serial/src/usb_descriptors.c#L152
 // and https://github.com/pololu/libusbp/blob/master/test/firmware/wixel/main.c#L460
-#define MS_OS_20_DESC_LEN  0xB2
 #define REQUEST_GET_MS_DESCRIPTOR    0x20
 
 // Microsoft OS 2.0 Descriptors, Table 8
@@ -94,6 +113,18 @@ uint8_t const* tud_descriptor_device_cb(void)
 #define MS_OS_10_COMPATIBLE_ID_DESCRIPTOR_INDEX 0x0004
 #define MS_OS_10_EXTENDED_PROPERTIES_DESCRIPTOR_INDEX 0x0005
 #define MS_OS_10_EXTENDED_PROPERTIES_DESC_LEN 0x008E
+
+#define MS_OS_20_REG_PROPERTY_DESC_LEN        0x0084
+#define MS_OS_20_DFU_FUNCTION_DESC_LEN        (0x0008 + 0x0014 + MS_OS_20_REG_PROPERTY_DESC_LEN)
+#if DFU_PLACEHOLDER_LEN
+#define MS_OS_20_PLACEHOLDER_FUNCTION_DESC_LEN (0x0008 + 0x0014)
+#define MS_OS_10_COMPATIBLE_ID_FUNCTION_COUNT 2
+#else
+#define MS_OS_20_PLACEHOLDER_FUNCTION_DESC_LEN 0
+#define MS_OS_10_COMPATIBLE_ID_FUNCTION_COUNT 1
+#endif
+#define MS_OS_20_DESC_LEN                     (0x000A + 0x0008 + MS_OS_20_DFU_FUNCTION_DESC_LEN + MS_OS_20_PLACEHOLDER_FUNCTION_DESC_LEN)
+#define MS_OS_10_COMPATIBLE_ID_DESC_LEN       (0x0010 + (0x0018 * MS_OS_10_COMPATIBLE_ID_FUNCTION_COUNT))
 
 #define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
 
@@ -115,14 +146,14 @@ uint8_t const desc_ms_os_20[] =
   U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_CONFIGURATION), 0, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A),
 
   // Function Subset header: length, type, first interface, reserved, subset length
-  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_DFU_MODE, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A-0x08),
+  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_DFU_MODE, 0, U16_TO_U8S_LE(MS_OS_20_DFU_FUNCTION_DESC_LEN),
 
   // MS OS 2.0 Compatible ID descriptor: length, type, compatible ID, sub compatible ID
   U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // sub-compatible
 
   // MS OS 2.0 Registry property descriptor: length, type
-  U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A-0x08-0x08-0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
+  U16_TO_U8S_LE(MS_OS_20_REG_PROPERTY_DESC_LEN), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
   U16_TO_U8S_LE(0x0007), U16_TO_U8S_LE(0x002A), // wPropertyDataType, wPropertyNameLength and PropertyName "DeviceInterfaceGUIDs\0" in UTF-16
   'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00, 'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00,
   'r', 0x00, 'f', 0x00, 'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00, 'D', 0x00, 's', 0x00, 0x00, 0x00,
@@ -132,6 +163,14 @@ uint8_t const desc_ms_os_20[] =
   '0', 0x00, 'D', 0x00, '0', 0x00, '8', 0x00, '-', 0x00, '4', 0x00, '3', 0x00, 'F', 0x00, 'D', 0x00, '-', 0x00,
   '8', 0x00, 'B', 0x00, '3', 0x00, 'E', 0x00, '-', 0x00, '1', 0x00, '2', 0x00, '7', 0x00, 'C', 0x00, 'A', 0x00,
   '8', 0x00, 'A', 0x00, 'F', 0x00, 'F', 0x00, 'F', 0x00, '9', 0x00, 'D', 0x00, '}', 0x00, 0x00, 0x00, 0x00, 0x00
+
+#if DFU_PLACEHOLDER_LEN
+  ,
+  // Placeholder interface compatible ID descriptor
+  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_DFU_COMPOSITE_PLACEHOLDER, 0, U16_TO_U8S_LE(MS_OS_20_PLACEHOLDER_FUNCTION_DESC_LEN),
+  U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+#endif
 };
 
 uint8_t const * tud_descriptor_bos_cb(void)
@@ -144,6 +183,7 @@ uint8_t const * tud_descriptor_bos_cb(void)
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
+#if CFG_TUD_AUDIO
 const size_t uac2_interface_descriptors_length =
         TUD_AUDIO_DESC_CLK_SRC_LEN
 #if AUDIO_OUTPUT_ENABLED
@@ -191,7 +231,12 @@ const uint16_t tud_audio_desc_lengths[CFG_TUD_AUDIO] = {
         uac2_total_descriptors_length
 };
 
-#define CONFIG_TOTAL_LEN        (TUD_CONFIG_DESC_LEN + (CFG_TUD_AUDIO * uac2_total_descriptors_length) + TUD_DFU_DESC_LEN(DFU_ALT_COUNT))
+#define AUDIO_TOTAL_LEN         (CFG_TUD_AUDIO * uac2_total_descriptors_length)
+#else
+#define AUDIO_TOTAL_LEN         0
+#endif
+
+#define CONFIG_TOTAL_LEN        (TUD_CONFIG_DESC_LEN + AUDIO_TOTAL_LEN + DFU_IAD_LEN + TUD_DFU_DESC_LEN(DFU_ALT_COUNT) + DFU_PLACEHOLDER_LEN)
 #define EPNUM_AUDIO   0x01
 
 #define AUDIO_INTERFACE_STRING_INDEX 4
@@ -201,6 +246,7 @@ uint8_t const desc_configuration[] = {
     // Config number, interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 400),
 
+#if CFG_TUD_AUDIO
     /* Standard Interface Association Descriptor (IAD) */
     TUD_AUDIO_DESC_IAD(/*_firstitfs*/ ITF_NUM_AUDIO_CONTROL, /*_nitfs*/ 1+AUDIO_OUTPUT_ENABLED+AUDIO_INPUT_ENABLED, /*_stridx*/ 0x00),
     /* Standard AC Interface Descriptor(4.7.1) */
@@ -271,9 +317,20 @@ uint8_t const desc_configuration[] = {
     /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */
     TUD_AUDIO_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO_CTRL_NONE, /*_lockdelayunit*/ AUDIO_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_MILLISEC, /*_lockdelay*/ 0x0003),
 #endif
+#endif
+
+#if DFU_IAD_LEN
+    // Standard Interface Association Descriptor (IAD) for DFU-only composite enumeration
+    DFU_IAD_LEN, TUSB_DESC_INTERFACE_ASSOCIATION, ITF_NUM_DFU_MODE, 1, TUSB_CLASS_APPLICATION_SPECIFIC, APP_SUBCLASS_DFU_RUNTIME, 0x02, DFU_INTERFACE_STRING_INDEX,
+#endif
 
     // Interface number, Alternate count, starting string index, attributes, detach timeout, transfer size
     TUD_DFU_DESCRIPTOR(ITF_NUM_DFU_MODE, DFU_ALT_COUNT, DFU_INTERFACE_STRING_INDEX, DFU_FUNC_ATTRS, 1000, CFG_TUD_DFU_XFER_BUFSIZE),
+
+#if DFU_PLACEHOLDER_LEN
+    // No-endpoint vendor interface to force Windows composite child PDOs in DFU-only builds
+    DFU_PLACEHOLDER_LEN, TUSB_DESC_INTERFACE, ITF_NUM_DFU_COMPOSITE_PLACEHOLDER, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, 0,
+#endif
 
     }; // desc_configuration
 
@@ -348,10 +405,10 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index,
 
 const uint8_t ms_compatible_id_descriptor[] = {
     // Header (16 bytes)
-    0x28,0x00,0x00,0x00,   // dwLength = 40
+    U32_TO_U8S_LE(MS_OS_10_COMPATIBLE_ID_DESC_LEN),
     0x00,0x01,             // bcdVersion = 1.0
     0x04,0x00,             // wIndex = 0x0004
-    0x01,                  // bCount = 1 interface
+    MS_OS_10_COMPATIBLE_ID_FUNCTION_COUNT,
     0x00,0x00,0x00,0x00,0x00,0x00,0x00, // reserved
 
     // Function Section (24 bytes)
@@ -360,6 +417,16 @@ const uint8_t ms_compatible_id_descriptor[] = {
     'W','I','N','U','S','B',0x00,0x00, // CompatibleID = "WINUSB"
     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00, // SubCompatibleID
     0x00,0x00,0x00,0x00,0x00,0x00 // reserved
+
+#if DFU_PLACEHOLDER_LEN
+    ,
+    // Function Section (24 bytes)
+    ITF_NUM_DFU_COMPOSITE_PLACEHOLDER,
+    0x01,
+    'W','I','N','U','S','B',0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00
+#endif
 };
 
 const uint8_t ms_extended_properties_descriptor[] = {

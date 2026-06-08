@@ -28,6 +28,10 @@
 #define DEBUG_UNIT USB_AUDIO
 #define DEBUG_PRINT_ENABLE_USB_AUDIO 0
 
+#include "app_conf.h"
+
+#if appconfUSB_ENABLED
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -44,8 +48,6 @@
 #include "rtos_intertile.h"
 
 #include "audio_pipeline.h"
-
-#include "app_conf.h"
 
 // Audio controls
 // Current states
@@ -138,7 +140,11 @@ void usb_audio_send(rtos_intertile_t *intertile_ctx,
         for (int i=0; i<appconfAUDIO_PIPELINE_FRAME_ADVANCE; i++) {
             if (ch < num_chans) {
 #if RESPEAKER_LITE
+                // Output proc0 and proc0
                 usb_audio_in_frame[i][ch] = frame_buf_ptr[i] >> src_32_shift;
+                // TEST: output proc0 and mic0
+                // if ( ch == 0 ) usb_audio_in_frame[i][ch] = frame_buf_ptr[i+(appconfAUDIO_PIPELINE_FRAME_ADVANCE*ch)] >> src_32_shift;
+                // else usb_audio_in_frame[i][ch] = frame_buf_ptr[i+(appconfAUDIO_PIPELINE_FRAME_ADVANCE*(ch + 4))] >> src_32_shift;
 #else
                 usb_audio_in_frame[i][ch] = frame_buf_ptr[i+(appconfAUDIO_PIPELINE_FRAME_ADVANCE*ch)] >> src_32_shift;
 #endif
@@ -830,3 +836,5 @@ void usb_audio_init(rtos_intertile_t *intertile_ctx,
 
     xTaskCreate((TaskFunction_t) usb_audio_out_task, "usb_audio_out_task", portTASK_STACK_DEPTH(usb_audio_out_task), intertile_ctx, priority, &usb_audio_out_task_handle);
 }
+
+#endif /* appconfUSB_ENABLED */

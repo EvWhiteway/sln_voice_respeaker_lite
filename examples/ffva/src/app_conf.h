@@ -149,6 +149,10 @@
 #define appconfUSB_ENABLED         0
 #endif
 
+#ifndef appconfUSB_DFU_ENABLED
+#define appconfUSB_DFU_ENABLED     appconfUSB_ENABLED
+#endif
+
 #ifndef appconfUSB_AUDIO_SAMPLE_RATE
 #define appconfUSB_AUDIO_SAMPLE_RATE appconfAUDIO_PIPELINE_SAMPLE_RATE
 #endif
