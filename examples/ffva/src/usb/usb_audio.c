@@ -137,7 +137,11 @@ void usb_audio_send(rtos_intertile_t *intertile_ctx,
     for(int ch=0; ch<CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX; ch++) {
         for (int i=0; i<appconfAUDIO_PIPELINE_FRAME_ADVANCE; i++) {
             if (ch < num_chans) {
+#if RESPEAKER_LITE
+                usb_audio_in_frame[i][ch] = frame_buf_ptr[i] >> src_32_shift;
+#else
                 usb_audio_in_frame[i][ch] = frame_buf_ptr[i+(appconfAUDIO_PIPELINE_FRAME_ADVANCE*ch)] >> src_32_shift;
+#endif
             }
         }
     }

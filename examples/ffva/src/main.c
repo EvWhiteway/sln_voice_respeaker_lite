@@ -372,7 +372,7 @@ void startup_task(void *arg)
                 NULL);
 #endif
 #endif
-#if ON_TILE(1)
+#if ON_TILE(1) && !RESPEAKER_LITE
     gpio_test(gpio_ctx_t0);
 #endif
 

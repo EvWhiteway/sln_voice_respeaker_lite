@@ -27,9 +27,23 @@
 #include "usb_descriptors.h"
 #include "tusb.h"
 
-#define XMOS_VID        0x20B1
-#define XCORE_VOICE_PID 0x4001
-#define XCORE_VOICE_PRODUCT_STR "XCORE-VOICE"
+#if RESPEAKER_LITE
+#define USB_VID                  0x2886
+#define USB_PID                  0x0019
+#define USB_BCD                  0x0201
+#define USB_DEVICE_VERSION_BCD   0x0212
+#define USB_VENDOR_STR           "Seeed Studio"
+#define USB_PRODUCT_STR          "ReSpeaker Lite"
+#define USB_SERIAL_STR           "0000000001"
+#else
+#define USB_VID                  0x20B1
+#define USB_PID                  0x4001
+#define USB_BCD                  0x0201
+#define USB_DEVICE_VERSION_BCD   0x0001
+#define USB_VENDOR_STR           "XMOS"
+#define USB_PRODUCT_STR          "XCORE-VOICE"
+#define USB_SERIAL_STR           "123456"
+#endif
 
 //--------------------------------------------------------------------+
 // Device Descriptors
@@ -37,22 +51,29 @@
 tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0201,   // For BOS descriptor! https://microchip.my.site.com/s/article/Does-a-USB2-1-Specification-Exist
+    .bcdUSB             = USB_BCD,   // For BOS descriptor! https://microchip.my.site.com/s/article/Does-a-USB2-1-Specification-Exist
 
     .bDeviceClass       = TUSB_CLASS_UNSPECIFIED,
     .bDeviceSubClass    = TUSB_CLASS_UNSPECIFIED,
     .bDeviceProtocol    = TUSB_CLASS_UNSPECIFIED,
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
-    .idVendor           = XMOS_VID,
-    .idProduct          = XCORE_VOICE_PID,
-    .bcdDevice          = 0x0001,
+    .idVendor           = USB_VID,
+    .idProduct          = USB_PID,
+    .bcdDevice          = USB_DEVICE_VERSION_BCD,
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
     .iSerialNumber      = 0x03,
 
     .bNumConfigurations = 0x01
+};
+
+const uint8_t ms_os_string_descriptor[] = {
+  0x12, 0x03,                         // bLength, bDescriptorType
+  'M',0,'S',0,'F',0,'T',0,'1',0,'0',0,'0',0, // "MSFT100"
+  0x20,                               // VendorCode
+  0x00
 };
 
 // Invoked when received GET DEVICE DESCRIPTOR
@@ -69,6 +90,10 @@ uint8_t const* tud_descriptor_device_cb(void)
 
 // Microsoft OS 2.0 Descriptors, Table 8
 #define MS_OS_20_DESCRIPTOR_INDEX 7
+
+#define MS_OS_10_COMPATIBLE_ID_DESCRIPTOR_INDEX 0x0004
+#define MS_OS_10_EXTENDED_PROPERTIES_DESCRIPTOR_INDEX 0x0005
+#define MS_OS_10_EXTENDED_PROPERTIES_DESC_LEN 0x008E
 
 #define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
 
@@ -102,7 +127,7 @@ uint8_t const desc_ms_os_20[] =
   'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00, 'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00,
   'r', 0x00, 'f', 0x00, 'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00, 'D', 0x00, 's', 0x00, 0x00, 0x00,
   U16_TO_U8S_LE(0x0050), // wPropertyDataLength
-	//bPropertyData: “{975F44D9-0D08-43FD-8B3E-127CA8AFFF9D}”.
+	//bPropertyData: ?{975F44D9-0D08-43FD-8B3E-127CA8AFFF9D}?.
   '{', 0x00, '9', 0x00, '7', 0x00, '5', 0x00, 'F', 0x00, '4', 0x00, '4', 0x00, 'D', 0x00, '9', 0x00, '-', 0x00,
   '0', 0x00, 'D', 0x00, '0', 0x00, '8', 0x00, '-', 0x00, '4', 0x00, '3', 0x00, 'F', 0x00, 'D', 0x00, '-', 0x00,
   '8', 0x00, 'B', 0x00, '3', 0x00, 'E', 0x00, '-', 0x00, '1', 0x00, '2', 0x00, '7', 0x00, 'C', 0x00, 'A', 0x00,
@@ -267,10 +292,10 @@ uint8_t const* tud_descriptor_configuration_cb(uint8_t index)
 
 // array of pointer to string descriptors
 char const *string_desc_arr[] = {(const char[]) {0x09, 0x04}, // 0: is supported language is English (0x0409)
-        "XMOS",                      // 1: Manufacturer
-        XCORE_VOICE_PRODUCT_STR,     // 2: Product
-        "123456",                    // 3: Serials, should use chip ID
-        XCORE_VOICE_PRODUCT_STR,     // 4: Audio Interface
+        USB_VENDOR_STR,               // 1: Manufacturer
+        USB_PRODUCT_STR,              // 2: Product
+        USB_SERIAL_STR,               // 3: Serials, should use chip ID
+        USB_PRODUCT_STR,              // 4: Audio Interface
         "DFU FACTORY",               // 5: DFU device
         "DFU UPGRADE",               // 6: DFU device
         "DFU DATAPARTITION",         // 7: DFU device
@@ -290,7 +315,14 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index,
     if (index == 0) {
         memcpy(&_desc_str[1], string_desc_arr[0], 2);
         chr_count = 1;
-    } else {
+    }   
+    else if ( index == 0xEE )
+    {
+        // Microsoft OS 1.0 Descriptors
+        memcpy(&_desc_str[0], ms_os_string_descriptor, sizeof(ms_os_string_descriptor));
+        return _desc_str;
+    }
+    else {
         // Convert ASCII string into UTF-16
 
         if (!(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])))
@@ -314,17 +346,70 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index,
     return _desc_str;
 }
 
+const uint8_t ms_compatible_id_descriptor[] = {
+    // Header (16 bytes)
+    0x28,0x00,0x00,0x00,   // dwLength = 40
+    0x00,0x01,             // bcdVersion = 1.0
+    0x04,0x00,             // wIndex = 0x0004
+    0x01,                  // bCount = 1 interface
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00, // reserved
+
+    // Function Section (24 bytes)
+    ITF_NUM_DFU_MODE,      // bFirstInterfaceNumber
+    0x01,      // reserved
+    'W','I','N','U','S','B',0x00,0x00, // CompatibleID = "WINUSB"
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00, // SubCompatibleID
+    0x00,0x00,0x00,0x00,0x00,0x00 // reserved
+};
+
+const uint8_t ms_extended_properties_descriptor[] = {
+    // Extended Properties Header
+    U32_TO_U8S_LE(MS_OS_10_EXTENDED_PROPERTIES_DESC_LEN), // dwLength
+    0x00, 0x01,                                           // bcdVersion = 1.0
+    U16_TO_U8S_LE(MS_OS_10_EXTENDED_PROPERTIES_DESCRIPTOR_INDEX),
+    0x01, 0x00,                                           // wCount = 1
+
+    // Custom Property Section: DeviceInterfaceGUID = "{975F44D9-0D08-43FD-8B3E-127CA8AFFF9D}"
+    U32_TO_U8S_LE(MS_OS_10_EXTENDED_PROPERTIES_DESC_LEN - 0x0A), // dwSize
+    U32_TO_U8S_LE(0x00000001),                                  // dwPropertyDataType = REG_SZ
+    U16_TO_U8S_LE(0x0028),                                      // wPropertyNameLength
+    'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00,
+    'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00, 'r', 0x00, 'f', 0x00,
+    'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00,
+    'D', 0x00, 0x00, 0x00,
+    U32_TO_U8S_LE(0x004E),                                      // dwPropertyDataLength
+    '{', 0x00, '9', 0x00, '7', 0x00, '5', 0x00, 'F', 0x00, '4', 0x00,
+    '4', 0x00, 'D', 0x00, '9', 0x00, '-', 0x00, '0', 0x00, 'D', 0x00,
+    '0', 0x00, '8', 0x00, '-', 0x00, '4', 0x00, '3', 0x00, 'F', 0x00,
+    'D', 0x00, '-', 0x00, '8', 0x00, 'B', 0x00, '3', 0x00, 'E', 0x00,
+    '-', 0x00, '1', 0x00, '2', 0x00, '7', 0x00, 'C', 0x00, 'A', 0x00,
+    '8', 0x00, 'A', 0x00, 'F', 0x00, 'F', 0x00, 'F', 0x00, '9', 0x00,
+    'D', 0x00, '}', 0x00, 0x00, 0x00
+};
+
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
     switch (request->bRequest)
     {
         case REQUEST_GET_MS_DESCRIPTOR:
-            if ( request->wIndex == MS_OS_20_DESCRIPTOR_INDEX )
+            if (stage != CONTROL_STAGE_SETUP) return true; // nothing to with DATA & ACK stage
+
+            if ( request->wIndex == MS_OS_10_COMPATIBLE_ID_DESCRIPTOR_INDEX )
             {
-                if (stage != CONTROL_STAGE_SETUP) return true; // nothing to with DATA & ACK stage
-                // Send Microsoft OS 2.0 compatible descriptor
+                // Send Microsoft OS 1.0 compatible descriptor
+                return tud_control_xfer(rhport, request, (void*)(uintptr_t) ms_compatible_id_descriptor, sizeof(ms_compatible_id_descriptor));
+            }
+            else if ( request->wIndex == MS_OS_10_EXTENDED_PROPERTIES_DESCRIPTOR_INDEX )
+            {
+                // Send Microsoft OS 1.0 extended properties descriptor
+                return tud_control_xfer(rhport, request, (void*)(uintptr_t) ms_extended_properties_descriptor, sizeof(ms_extended_properties_descriptor));
+            }
+            else if ( request->wIndex == MS_OS_20_DESCRIPTOR_INDEX )
+            {
+                // Send Microsoft OS 2.0 descriptor
                 return tud_control_xfer(rhport, request, (void*)(uintptr_t) desc_ms_os_20, MS_OS_20_DESC_LEN);
-            }else
+            }
+            else
             {
                 return false;
             }
@@ -332,4 +417,34 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         default:
             return false;
     }
+}
+
+// device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
+tusb_desc_device_qualifier_t const desc_device_qualifier =
+{
+    .bLength            = sizeof(tusb_desc_device_qualifier_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
+    .bcdUSB             = 0x0200,
+
+    .bDeviceClass       = TUSB_CLASS_UNSPECIFIED,
+    .bDeviceSubClass    = TUSB_CLASS_UNSPECIFIED,
+    .bDeviceProtocol    = TUSB_CLASS_UNSPECIFIED,
+
+    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bNumConfigurations = 0x01,
+    .bReserved          = 0x00
+};
+
+
+uint8_t const* tud_descriptor_device_qualifier_cb(void)
+{
+    return (uint8_t const*) &desc_device_qualifier;
+}
+
+uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index)
+{
+    (void) index; // for multiple configurations
+
+    // Always return our normal descriptor
+    return desc_configuration;
 }

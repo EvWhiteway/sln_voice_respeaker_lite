@@ -8,6 +8,8 @@
 #include "platform/app_pll_ctrl.h"
 #include "gpio_test/gpio_test.h"
 
+#if !RESPEAKER_LITE
+
 #if XK_VOICE_L71
 #define BUTTON_MUTE_BITMASK 0x10
 #define BUTTON_BTN_BITMASK  0x20
@@ -110,3 +112,12 @@ void gpio_test(rtos_gpio_t *gpio_ctx)
                     NULL);
     }
 }
+
+#else
+
+void gpio_test(rtos_gpio_t *gpio_ctx)
+{
+    (void) gpio_ctx;
+}
+
+#endif

@@ -26,22 +26,39 @@ int aic3204_init(void)
 
 		// Program clock settings
 
-		// Default is CODEC_CLKIN is from MCLK pin. Don't need to change this.
-		// Power up NDAC and set to 1
-		aic3204_reg_write(AIC3204_NDAC, 0x81) == 0 &&
-		// Power up MDAC and set to 4
-		aic3204_reg_write(AIC3204_MDAC, 0x84) == 0 &&
+		// Default is CODEC_CLKIN is from MCLK pin. Do not need to change this.
+#if RESPEAKER_LITE
+        // ReSpeaker Lite uses 24.576 MHz MCLK with a 16 kHz DAC sample rate.
+        aic3204_reg_write(AIC3204_NDAC, 0x82) == 0 &&
+        aic3204_reg_write(AIC3204_MDAC, 0x86) == 0 &&
+        aic3204_reg_write(AIC3204_DOSR, 0x80) == 0 &&
+        // I2S, 32 bits, slave mode, DOUT always driving.
+        aic3204_reg_write(AIC3204_CODEC_IF, 0x30) == 0 &&
+#if appconfUSB_ENABLED
+        aic3204_reg_write(AIC3204_AUDIO_IF_4, 0x02) == 0 &&
+        aic3204_reg_write(AIC3204_AUDIO_IF_5, 0x00) == 0 &&
+#else
+        aic3204_reg_write(0x38, 0x02) == 0 &&
+        aic3204_reg_write(0x1F, 0x01) == 0 &&
+        aic3204_reg_write(AIC3204_AUDIO_IF_5, 0x01) == 0 &&
+#endif
+#else
+        // Power up NDAC and set to 1
+        aic3204_reg_write(AIC3204_NDAC, 0x81) == 0 &&
+        // Power up MDAC and set to 4
+        aic3204_reg_write(AIC3204_MDAC, 0x84) == 0 &&
         // Power up NADC and set to 1
-		aic3204_reg_write(AIC3204_NADC, 0x81) == 0 &&
+        aic3204_reg_write(AIC3204_NADC, 0x81) == 0 &&
         // Power up MADC and set to 4
-	    aic3204_reg_write(AIC3204_MADC, 0x84) == 0 &&
-		// Program DOSR = 128
-		aic3204_reg_write(AIC3204_DOSR, 0x80) == 0 &&
+        aic3204_reg_write(AIC3204_MADC, 0x84) == 0 &&
+        // Program DOSR = 128
+        aic3204_reg_write(AIC3204_DOSR, 0x80) == 0 &&
         // Program AOSR = 128
         aic3204_reg_write(AIC3204_AOSR, 0x80) == 0 &&
-		// Set Audio Interface Config: I2S, 24 bits, slave mode, DOUT always driving.
-		aic3204_reg_write(AIC3204_CODEC_IF, 0x20) == 0 &&
-		// Program the DAC processing block to be used - PRB_P1
+        // Set Audio Interface Config: I2S, 24 bits, slave mode, DOUT always driving.
+        aic3204_reg_write(AIC3204_CODEC_IF, 0x20) == 0 &&
+#endif
+        // Program the DAC processing block to be used - PRB_P1
 		aic3204_reg_write(AIC3204_DAC_SIG_PROC, 0x01) == 0 &&
 		// Program the ADC processing block to be used - PRB_R1
         aic3204_reg_write(AIC3204_ADC_SIG_PROC, 0x01) == 0 &&
@@ -64,39 +81,58 @@ int aic3204_init(void)
 		// Set the Left & Right DAC PowerTune mode to PTM_P3/4. Use Class-AB driver.
 		aic3204_reg_write(AIC3204_PLAY_CFG1, 0x00) == 0 &&
 		aic3204_reg_write(AIC3204_PLAY_CFG2, 0x00) == 0 &&
-		// Set ADC PowerTune mode PTM_R4.
-		aic3204_reg_write(AIC3204_ADC_PTM, 0x00) == 0 &&
-		// Set MicPGA startup delay to 3.1ms
-		aic3204_reg_write(AIC3204_AN_IN_CHRG, 0x31) == 0 &&
-		// Set the REF charging time to 40ms
+		#if !RESPEAKER_LITE
+        // Set ADC PowerTune mode PTM_R4.
+        aic3204_reg_write(AIC3204_ADC_PTM, 0x00) == 0 &&
+        // Set MicPGA startup delay to 3.1ms
+        aic3204_reg_write(AIC3204_AN_IN_CHRG, 0x31) == 0 &&
+#endif
+        // Set the REF charging time to 40ms
 		aic3204_reg_write(AIC3204_REF_STARTUP, 0x01) == 0 &&
 		// HP soft stepping settings for optimal pop performance at power up
 		// Rpop used is 6k with N = 6 and soft step = 20usec. This should work with 47uF coupling
-		// capacitor. Can try N=5,6 or 7 time constants as well. Trade-off delay vs “pop” sound.
+		// capacitor. Can try N=5,6 or 7 time constants as well. Trade-off delay vs ?pop? sound.
 		aic3204_reg_write(AIC3204_HP_START, 0x25) == 0 &&
 		// Route Left DAC to HPL
 		aic3204_reg_write(AIC3204_HPL_ROUTE, 0x08) == 0 &&
 		// Route Right DAC to HPR
-		aic3204_reg_write(AIC3204_HPR_ROUTE, 0x08) == 0 &&
-		// We are using Line input with low gain for PGA so can use 40k input R but lets stick to 20k for now.
-		// Route IN2_L to LEFT_P with 20K input impedance
-		aic3204_reg_write(AIC3204_LPGA_P_ROUTE, 0x20) == 0 &&
-		// Route IN2_R to LEFT_M with 20K input impedance
-		aic3204_reg_write(AIC3204_LPGA_N_ROUTE, 0x20) == 0 &&
-		// Route IN1_R to RIGHT_P with 20K input impedance
-		aic3204_reg_write(AIC3204_RPGA_P_ROUTE, 0x80) == 0 &&
-		// Route IN1_L to RIGHT_M with 20K input impedance
-		aic3204_reg_write(AIC3204_RPGA_N_ROUTE, 0x20) == 0 &&
-		// Unmute HPL and set gain to 0dB
+        aic3204_reg_write(AIC3204_HPR_ROUTE, 0x08) == 0 &&
+#if RESPEAKER_LITE
+        // Route Left and Right DACs to line outputs.
+        aic3204_reg_write(AIC3204_LOL_ROUTE, 0x08) == 0 &&
+        aic3204_reg_write(AIC3204_LOR_ROUTE, 0x08) == 0 &&
+#endif
+        #if !RESPEAKER_LITE
+        // We are using Line input with low gain for PGA so can use 40k input R but lets stick to 20k for now.
+        // Route IN2_L to LEFT_P with 20K input impedance
+        aic3204_reg_write(AIC3204_LPGA_P_ROUTE, 0x20) == 0 &&
+        // Route IN2_R to LEFT_M with 20K input impedance
+        aic3204_reg_write(AIC3204_LPGA_N_ROUTE, 0x20) == 0 &&
+        // Route IN1_R to RIGHT_P with 20K input impedance
+        aic3204_reg_write(AIC3204_RPGA_P_ROUTE, 0x80) == 0 &&
+        // Route IN1_L to RIGHT_M with 20K input impedance
+        aic3204_reg_write(AIC3204_RPGA_N_ROUTE, 0x20) == 0 &&
+#endif
+        // Unmute HPL and set gain to 0dB
 		aic3204_reg_write(AIC3204_HPL_GAIN, 0x00) == 0 &&
 		// Unmute HPR and set gain to 0dB
-		aic3204_reg_write(AIC3204_HPR_GAIN, 0x00) == 0 &&
-		// Unmute Left MICPGA, Set Gain to 0dB.
+        aic3204_reg_write(AIC3204_HPR_GAIN, 0x00) == 0 &&
+#if RESPEAKER_LITE
+        // Unmute LOL and LOR and set gain to 0dB.
+        aic3204_reg_write(AIC3204_LOL_GAIN, 0x00) == 0 &&
+        aic3204_reg_write(AIC3204_LOR_GAIN, 0x00) == 0 &&
+#endif
+        // Unmute Left MICPGA, Set Gain to 0dB.
 		aic3204_reg_write(AIC3204_LPGA_VOL, 0x00) == 0 &&
 		// Unmute Right MICPGA, Set Gain to 0dB.
 		aic3204_reg_write(AIC3204_RPGA_VOL, 0x00) == 0 &&
-		// Power up HPL and HPR drivers
-		aic3204_reg_write(AIC3204_OP_PWR_CTRL, 0x30) == 0
+		#if RESPEAKER_LITE
+        // Power up HPL, HPR, LOL and LOR drivers.
+        aic3204_reg_write(AIC3204_OP_PWR_CTRL, 0x3C) == 0
+#else
+        // Power up HPL and HPR drivers
+        aic3204_reg_write(AIC3204_OP_PWR_CTRL, 0x30) == 0
+#endif
 	) {
 		// Wait for 2.5 sec for soft stepping to take effect
         aic3204_wait(2500);

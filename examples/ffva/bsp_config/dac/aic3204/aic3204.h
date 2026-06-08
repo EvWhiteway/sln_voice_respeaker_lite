@@ -13,6 +13,9 @@
 // Page 0
 #define AIC3204_PAGE_CTRL     0x00 // Register 0  - Page Control
 #define AIC3204_SW_RST        0x01 // Register 1  - Software Reset
+#define AIC3204_CLK_PLL1      0x04 // Register 4  - Clock Setting Register 1, Multiplexers
+#define AIC3204_CLK_PLL2      0x05 // Register 5  - Clock Setting Register 2, P and R values
+#define AIC3204_CLK_PLL3      0x06 // Register 6  - Clock Setting Register 3, J values
 #define AIC3204_NDAC          0x0B // Register 11 - NDAC Divider Value
 #define AIC3204_MDAC          0x0C // Register 12 - MDAC Divider Value
 #define AIC3204_DOSR          0x0E // Register 14 - DOSR Divider Value (LS Byte)
@@ -20,12 +23,15 @@
 #define AIC3204_MADC          0x13 // Register 19 - MADC Divider Value
 #define AIC3204_AOSR          0x14 // Register 20 - AOSR Divider Value
 #define AIC3204_CODEC_IF      0x1B // Register 27 - CODEC Interface Control
+#define AIC3204_AUDIO_IF_4    0x36 // Register 54 - Audio Interface Setting Register 4
+#define AIC3204_AUDIO_IF_5    0x20 // Register 32 - Audio Interface Setting Register 5
 #define AIC3204_DAC_SIG_PROC  0x3C // Register 60 - DAC Sig Processing Block Control
 #define AIC3204_ADC_SIG_PROC  0x3D // Register 61 - ADC Sig Processing Block Control
 #define AIC3204_DAC_CH_SET1   0x3F // Register 63 - DAC Channel Setup 1
 #define AIC3204_DAC_CH_SET2   0x40 // Register 64 - DAC Channel Setup 2
 #define AIC3204_DACL_VOL_D    0x41 // Register 65 - DAC Left Digital Vol Control
 #define AIC3204_DACR_VOL_D    0x42 // Register 66 - DAC Right Digital Vol Control
+#define AIC3204_DRC_ENABLE    0x44 // Register 68 - DRC Control
 #define AIC3204_ADC_CH_SET    0x51 // Register 81 - ADC Channel Setup
 #define AIC3204_ADC_FGA_MUTE  0x52 // Register 82 - ADC Fine Gain Adjust/Mute
 
@@ -38,8 +44,12 @@
 #define AIC3204_CM_CTRL       0x0A // Register 10 - Common Mode Control
 #define AIC3204_HPL_ROUTE     0x0C // Register 12 - HPL Routing Select
 #define AIC3204_HPR_ROUTE     0x0D // Register 13 - HPR Routing Select
+#define AIC3204_LOL_ROUTE     0x0E // Register 14 - LOL Routing Select
+#define AIC3204_LOR_ROUTE     0x0F // Register 15 - LOR Routing Select
 #define AIC3204_HPL_GAIN      0x10 // Register 16 - HPL Driver Gain
 #define AIC3204_HPR_GAIN      0x11 // Register 17 - HPR Driver Gain
+#define AIC3204_LOL_GAIN      0x12 // Register 18 - Line Out Left Driver Gain
+#define AIC3204_LOR_GAIN      0x13 // Register 19 - Line Out Right Driver Gain
 #define AIC3204_HP_START      0x14 // Register 20 - Headphone Driver Startup
 #define AIC3204_LPGA_P_ROUTE  0x34 // Register 52 - Left PGA Positive Input Route
 #define AIC3204_LPGA_N_ROUTE  0x36 // Register 54 - Left PGA Negative Input Route

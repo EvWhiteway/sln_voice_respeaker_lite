@@ -3,6 +3,8 @@ option(DEBUG_FFVA_USB_MIC_INPUT        "Enable ffva usb mic input"  OFF)
 option(DEBUG_FFVA_USB_MIC_INPUT_PIPELINE_BYPASS  "Enable ffva usb mic input and audio pipeline bypass"  OFF)
 option(DEBUG_FFVA_USB_VERBOSE_OUTPUT        "Enable ffva usb with mic, ref, and proc output"  OFF)
 
+set(FFVA_UA_BOARD_TARGET sln_voice::app::ffva::respeaker_lite)
+set(FFVA_UA_BOOT_PARTITION_SIZE 0x200000)
 set(FFVA_UA_COMPILE_DEFINITIONS
     ${APP_COMPILE_DEFINITIONS}
     appconfI2S_ENABLED=1
@@ -49,7 +51,7 @@ foreach(FFVA_AP ${FFVA_PIPELINES_UA})
     target_link_libraries(${TARGET_NAME}
         PUBLIC
             ${APP_COMMON_LINK_LIBRARIES}
-            sln_voice::app::ffva::xk_voice_l71
+            ${FFVA_UA_BOARD_TARGET}
             sln_voice::app::ffva::ap::${FFVA_AP}
     )
     target_link_options(${TARGET_NAME} PRIVATE ${APP_LINK_OPTIONS})
@@ -68,7 +70,7 @@ foreach(FFVA_AP ${FFVA_PIPELINES_UA})
     target_link_libraries(${TARGET_NAME}
         PUBLIC
             ${APP_COMMON_LINK_LIBRARIES}
-            sln_voice::app::ffva::xk_voice_l71
+            ${FFVA_UA_BOARD_TARGET}
             sln_voice::app::ffva::ap::${FFVA_AP}
     )
     target_link_options(${TARGET_NAME} PRIVATE ${APP_LINK_OPTIONS})
@@ -134,7 +136,7 @@ foreach(FFVA_AP ${FFVA_PIPELINES_UA})
 
     create_flash_app_target(
         #[[ Target ]]                  ${TARGET_NAME}
-        #[[ Boot Partition Size ]]     0x100000
+        #[[ Boot Partition Size ]]     ${FFVA_UA_BOOT_PARTITION_SIZE}
         #[[ Data Partition Contents ]] ${DATA_PARTITION_FILE}
         #[[ Dependencies ]]            ${DATA_PARTITION_FILE}
     )
