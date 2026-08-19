@@ -32,6 +32,7 @@
 
 #if appconfUSB_ENABLED
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -140,11 +141,31 @@ void usb_audio_send(rtos_intertile_t *intertile_ctx,
         for (int i=0; i<appconfAUDIO_PIPELINE_FRAME_ADVANCE; i++) {
             if (ch < num_chans) {
 #if RESPEAKER_LITE
-                // Output proc0 and proc0
+#if appconfRESPEAKER_LITE_USB_CH1_RAW_MIC
+                /* frame_buffers is a flat frame_data_t (see audio_pipeline_dsp.h):
+                 * slot 0 proc0, 1 proc1, 2 ref0, 3 ref1, 4 mic0, 5 mic1,
+                 * each appconfAUDIO_PIPELINE_FRAME_ADVANCE samples long.
+                 * USB ch0 = proc0 (full pipeline), USB ch1 = raw mic0 (no DSP). */
+                if (ch == 0) {
+                    usb_audio_in_frame[i][ch] = frame_buf_ptr[i] >> src_32_shift;
+                } else {
+                    int32_t raw = frame_buf_ptr[i + (appconfAUDIO_PIPELINE_FRAME_ADVANCE * 4)];
+#if appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT > 0
+                    const int32_t lim = INT32_MAX >> appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT;
+                    if (raw > lim) {
+                        raw = INT32_MAX;
+                    } else if (raw < -lim - 1) {
+                        raw = INT32_MIN;
+                    } else {
+                        raw <<= appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT;
+                    }
+#endif
+                    usb_audio_in_frame[i][ch] = raw >> src_32_shift;
+                }
+#else
+                // Stock Seeed behaviour: proc0 on both USB channels
                 usb_audio_in_frame[i][ch] = frame_buf_ptr[i] >> src_32_shift;
-                // TEST: output proc0 and mic0
-                // if ( ch == 0 ) usb_audio_in_frame[i][ch] = frame_buf_ptr[i+(appconfAUDIO_PIPELINE_FRAME_ADVANCE*ch)] >> src_32_shift;
-                // else usb_audio_in_frame[i][ch] = frame_buf_ptr[i+(appconfAUDIO_PIPELINE_FRAME_ADVANCE*(ch + 4))] >> src_32_shift;
+#endif
 #else
                 usb_audio_in_frame[i][ch] = frame_buf_ptr[i+(appconfAUDIO_PIPELINE_FRAME_ADVANCE*ch)] >> src_32_shift;
 #endif
