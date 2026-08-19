@@ -20,6 +20,14 @@
 #error appconfI2S_AUDIO_SAMPLE_RATE must be 48000 to use I2S TDM
 #endif
 
+/* usb_audio.c only implements 1:1 or a fixed 3:1 (lib_src ds3/us3 voice)
+ * conversion between the USB rate and the 16 kHz pipeline rate. */
+#if appconfUSB_ENABLED && \
+    appconfUSB_AUDIO_SAMPLE_RATE != appconfAUDIO_PIPELINE_SAMPLE_RATE && \
+    appconfUSB_AUDIO_SAMPLE_RATE != 3*appconfAUDIO_PIPELINE_SAMPLE_RATE
+#error appconfUSB_AUDIO_SAMPLE_RATE must be 16000 or 48000
+#endif
+
 #if XK_VOICE_L71
 #if appconfSPI_OUTPUT_ENABLED
 #error SPI audio output not currently supported on XK-VOICE-L71 board

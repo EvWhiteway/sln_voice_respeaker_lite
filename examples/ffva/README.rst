@@ -113,6 +113,28 @@ Once flashed, the application will run.
 If changes are made to the data partition components, the application must be
 re-flashed.
 
+Building the USB Firmware for a 48 kHz Host
+===========================================
+
+By default the ``example_ffva_ua_*`` firmware enumerates as a 16 kHz USB Audio
+Class 2 device (capture and playback). Hosts that only run their audio stack at
+48 kHz can build the firmware with a 48 kHz USB interface instead; the audio
+pipeline keeps running at 16 kHz and the firmware converts 3:1 in both
+directions using the ``lib_src`` voice sample rate converters (this is the same
+conversion used by the 48 kHz I2S configurations).
+
+::
+
+    cmake -B build --toolchain xmos_cmake_toolchain/xs3a.cmake -DFFVA_UA_USB_SAMPLE_RATE=48000
+    cd build
+
+    make example_ffva_ua_adec_altarch
+
+``FFVA_UA_USB_SAMPLE_RATE`` accepts ``16000`` (default) or ``48000`` and applies
+to all ``example_ffva_ua_*`` and ``example_ffva_ua_dev_*`` targets. The USB
+descriptors, endpoint sizes and the UAC2 clock source range follow the selected
+rate; the I2S/DAC playback path is unaffected.
+
 Running the Firmware
 ====================
 

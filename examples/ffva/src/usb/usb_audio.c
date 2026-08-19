@@ -119,6 +119,36 @@ typedef int32_t samp_t;
 #error CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX must be either 2 or 4
 #endif
 
+/*
+ * Convert a lib_src ds3/us3 output back to a USB sample. The SRC filters are
+ * run directly on the samp_t-range values (no shift up to 32 bits), so their
+ * output is in the same range apart from filter overshoot near full scale;
+ * clamp rather than let the narrowing conversion wrap.
+ */
+static inline samp_t src_out_to_samp(int64_t x)
+{
+#if CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 2
+    if (x > INT16_MAX) {
+        return INT16_MAX;
+    }
+    if (x < INT16_MIN) {
+        return INT16_MIN;
+    }
+#endif
+    return (samp_t) x;
+}
+
+#if RATE_MULTIPLIER == 3
+/*
+ * State for the 48 kHz USB path (pipeline at 16 kHz, USB at 3x).
+ * us3_carry holds up-sampled TX frames left over from the previous IN packet;
+ * see tud_audio_tx_done_pre_load_cb().
+ */
+static int32_t __attribute__((aligned (8))) us3_state[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX][SRC_FF3V_FIR_TAPS_PER_PHASE];
+static samp_t us3_carry[RATE_MULTIPLIER - 1][CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX];
+static size_t us3_carry_count = 0;
+#endif
+
 void usb_audio_send(rtos_intertile_t *intertile_ctx,
                     size_t frame_count,
                     int32_t **frame_buffers,
@@ -605,7 +635,7 @@ bool tud_audio_rx_done_post_read_cb(uint8_t rhport,
                     int64_t sum = 0;
                     sum = src_ds3_voice_add_sample(sum, src_data[j][0], src_ff3v_fir_coefs[0], usb_audio_frames[3*i + 0][j]);
                     sum = src_ds3_voice_add_sample(sum, src_data[j][1], src_ff3v_fir_coefs[1], usb_audio_frames[3*i + 1][j]);
-                    src_audio_frames[i][j] = src_ds3_voice_add_final_sample(sum, src_data[j][2], src_ff3v_fir_coefs[2], usb_audio_frames[3*i + 2][j]);
+                    src_audio_frames[i][j] = src_out_to_samp(src_ds3_voice_add_final_sample(sum, src_data[j][2], src_ff3v_fir_coefs[2], usb_audio_frames[3*i + 2][j]));
                 }
             }
             xStreamBufferSend(samples_from_host_stream_buf, src_audio_frames, stream_buffer_send_byte_count, 0);
@@ -710,25 +740,23 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport,
         //  so, send all zeros
         memset(usb_audio_frames, 0, tx_size_bytes);
         tud_audio_write(usb_audio_frames, tx_size_bytes);
+#if RATE_MULTIPLIER == 3
+        /* (Re)starting the stream: drop any carried frames and the SRC history */
+        us3_carry_count = 0;
+        memset(us3_state, 0, sizeof(us3_state));
+#endif
         return true;
     }
 
-    size_t tx_size_bytes_rate_adjusted = tx_size_bytes / RATE_MULTIPLIER;
-    size_t tx_size_frames_rate_adjusted = tx_size_frames / RATE_MULTIPLIER;
-
+#if RATE_MULTIPLIER == 1
     /* We must always output samples equal to what we recv in adaptive
      * In the event we underflow send 0's. */
     size_t ready_data_bytes = 0;
-    if (bytes_available >= tx_size_bytes_rate_adjusted) {
-        ready_data_bytes = tx_size_bytes_rate_adjusted;
+    if (bytes_available >= tx_size_bytes) {
+        ready_data_bytes = tx_size_bytes;
     } else {
         ready_data_bytes = bytes_available;
-        if (RATE_MULTIPLIER == 3) {
-            ready_data_bytes /= RATE_MULTIPLIER;
-            memset(usb_audio_frames, 0, tx_size_bytes);
-        } else {
-            memset(stream_buffer_audio_frames, 0, tx_size_bytes);
-        }
+        memset(stream_buffer_audio_frames, 0, tx_size_bytes);
         rtos_printf("Oops tx buffer underflowed!\n");
     }
 
@@ -738,20 +766,62 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport,
         num_rx_total += num_rx;
     }
 
-    if (RATE_MULTIPLIER == 3) {
-        static int32_t __attribute__((aligned (8))) src_data[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX][SRC_FF3V_FIR_TAPS_PER_PHASE];
+    tud_audio_write(stream_buffer_audio_frames, tx_size_bytes);
+#else /* RATE_MULTIPLIER == 3, enforced in app_conf_check.h */
+    /*
+     * The stream buffer holds pipeline-rate (16 kHz) frames. Up-sample by
+     * RATE_MULTIPLIER to fill exactly tx_size_frames USB frames so that the IN
+     * packet size keeps mirroring the OUT packet size (adaptive mode). The
+     * host is not obliged to send a multiple of RATE_MULTIPLIER frames per
+     * packet, so up-sampled frames beyond tx_size_frames are carried over to
+     * the next packet rather than dropped (which would slowly overfill the
+     * stream buffer) or replaced with silence. Only whole pipeline frames are
+     * ever pulled from the stream buffer, so a non-multiple packet size can
+     * not desynchronise the byte stream from its frame boundaries.
+     */
+    const size_t frame_bytes = sizeof(samp_t) * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX;
 
-        for (int i = 0; i < tx_size_frames_rate_adjusted ; i++) {
-            for (int j = 0; j < CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX; j++) {
-                usb_audio_frames[3*i + 0][j] = src_us3_voice_input_sample(src_data[j], src_ff3v_fir_coefs[2], (int32_t)stream_buffer_audio_frames[i][j]);
-                usb_audio_frames[3*i + 1][j] = src_us3_voice_get_next_sample(src_data[j], src_ff3v_fir_coefs[1]);
-                usb_audio_frames[3*i + 2][j] = src_us3_voice_get_next_sample(src_data[j], src_ff3v_fir_coefs[0]);
-            }
-        }
-        tud_audio_write(usb_audio_frames, tx_size_bytes);
-    } else {
-        tud_audio_write(stream_buffer_audio_frames, tx_size_bytes);
+    memcpy(usb_audio_frames, us3_carry, us3_carry_count * frame_bytes);
+
+    /* Pipeline frames needed to complete this packet */
+    size_t needed_frames = 0;
+    if (tx_size_frames > us3_carry_count) {
+        needed_frames = (tx_size_frames - us3_carry_count + RATE_MULTIPLIER - 1) / RATE_MULTIPLIER;
     }
+    const size_t needed_bytes = needed_frames * frame_bytes;
+
+    /* We must always output samples equal to what we recv in adaptive
+     * In the event we underflow send 0's. */
+    size_t ready_data_bytes = needed_bytes;
+    if (bytes_available < needed_bytes) {
+        ready_data_bytes = (bytes_available / frame_bytes) * frame_bytes;
+        memset(stream_buffer_audio_frames, 0, needed_bytes);
+        rtos_printf("Oops tx buffer underflowed!\n");
+    }
+
+    size_t num_rx_total = 0;
+    while (num_rx_total < ready_data_bytes) {
+        size_t num_rx = xStreamBufferReceive(samples_to_host_stream_buf, (uint8_t *) stream_buffer_audio_frames + num_rx_total, ready_data_bytes - num_rx_total, 0);
+        num_rx_total += num_rx;
+    }
+
+    for (size_t i = 0; i < needed_frames; i++) {
+        samp_t (*out)[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX] = &usb_audio_frames[us3_carry_count + RATE_MULTIPLIER * i];
+        for (int j = 0; j < CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX; j++) {
+            out[0][j] = src_out_to_samp(src_us3_voice_input_sample(us3_state[j], src_ff3v_fir_coefs[2], (int32_t) stream_buffer_audio_frames[i][j]));
+            out[1][j] = src_out_to_samp(src_us3_voice_get_next_sample(us3_state[j], src_ff3v_fir_coefs[1]));
+            out[2][j] = src_out_to_samp(src_us3_voice_get_next_sample(us3_state[j], src_ff3v_fir_coefs[0]));
+        }
+    }
+
+    /* Anything past tx_size_frames (at most RATE_MULTIPLIER - 1 frames) is
+     * kept for the next packet. */
+    const size_t produced_frames = us3_carry_count + RATE_MULTIPLIER * needed_frames;
+    us3_carry_count = produced_frames - tx_size_frames;
+    memcpy(us3_carry, usb_audio_frames[tx_size_frames], us3_carry_count * frame_bytes);
+
+    tud_audio_write(usb_audio_frames, tx_size_frames * frame_bytes);
+#endif
     return true;
 }
 

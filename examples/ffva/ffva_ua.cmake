@@ -3,6 +3,12 @@ option(DEBUG_FFVA_USB_MIC_INPUT        "Enable ffva usb mic input"  OFF)
 option(DEBUG_FFVA_USB_MIC_INPUT_PIPELINE_BYPASS  "Enable ffva usb mic input and audio pipeline bypass"  OFF)
 option(DEBUG_FFVA_USB_VERBOSE_OUTPUT        "Enable ffva usb with mic, ref, and proc output"  OFF)
 
+# USB audio sample rate presented to the host (capture and playback). The DSP
+# pipeline always runs at 16 kHz; at 48000 the firmware converts 3:1 on the
+# fly (lib_src ds3/us3 voice filters). 16000 is the stock behaviour.
+set(FFVA_UA_USB_SAMPLE_RATE 16000 CACHE STRING "USB audio sample rate for the ffva_ua targets: 16000 or 48000")
+set_property(CACHE FFVA_UA_USB_SAMPLE_RATE PROPERTY STRINGS 16000 48000)
+
 set(FFVA_UA_BOARD_TARGET sln_voice::app::ffva::respeaker_lite)
 set(FFVA_UA_BOOT_PARTITION_SIZE 0x200000)
 set(FFVA_UA_COMPILE_DEFINITIONS
@@ -25,11 +31,20 @@ if(DEBUG_FFVA_USB_MIC_INPUT_PIPELINE_BYPASS)
     list(APPEND FFVA_UA_COMPILE_DEFINITIONS appconfMIC_SRC_DEFAULT=appconfMIC_SRC_USB)
     list(APPEND FFVA_UA_COMPILE_DEFINITIONS appconfUSB_AUDIO_MODE=appconfUSB_AUDIO_TESTING)
     list(APPEND FFVA_UA_COMPILE_DEFINITIONS appconfPIPELINE_BYPASS=1)
-    list(APPEND FFVA_UA_COMPILE_DEFINITIONS appconfUSB_AUDIO_SAMPLE_RATE=48000)
+    set(FFVA_UA_USB_SAMPLE_RATE 48000)
 endif()
 
 if(DEBUG_FFVA_USB_VERBOSE_OUTPUT)
     list(APPEND FFVA_UA_COMPILE_DEFINITIONS appconfUSB_AUDIO_MODE=appconfUSB_AUDIO_TESTING)
+endif()
+
+if(NOT (FFVA_UA_USB_SAMPLE_RATE EQUAL 16000 OR FFVA_UA_USB_SAMPLE_RATE EQUAL 48000))
+    message(FATAL_ERROR "FFVA_UA_USB_SAMPLE_RATE must be 16000 or 48000 (got '${FFVA_UA_USB_SAMPLE_RATE}')")
+endif()
+if(NOT FFVA_UA_USB_SAMPLE_RATE EQUAL 16000)
+    # 16000 is the app_conf.h default; only pass the definition when it differs
+    # so the stock build is unchanged.
+    list(APPEND FFVA_UA_COMPILE_DEFINITIONS appconfUSB_AUDIO_SAMPLE_RATE=${FFVA_UA_USB_SAMPLE_RATE})
 endif()
 
 query_tools_version()
