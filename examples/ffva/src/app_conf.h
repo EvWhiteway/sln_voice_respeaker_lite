@@ -48,6 +48,30 @@
 /* If in channel sample format, appconfAUDIO_PIPELINE_FRAME_ADVANCE == MIC_ARRAY_CONFIG_SAMPLES_PER_FRAME*/
 #define appconfAUDIO_PIPELINE_FRAME_ADVANCE     MIC_ARRAY_CONFIG_SAMPLES_PER_FRAME
 
+/* ReSpeaker Lite USB capture channel layout.
+ *
+ * Stock Seeed firmware sends the fully processed pipeline output (proc0 =
+ * AEC + IC + NS + AGC) on BOTH USB capture channels. That leaves a host with
+ * no unprocessed signal: the on-chip AEC removes just enough of the echo
+ * correlation that a host-side linear canceller (e.g. WebRTC AEC3) can never
+ * lock, while the on-chip AGC re-amplifies the residual it leaves behind.
+ *
+ * With appconfRESPEAKER_LITE_USB_CH1_RAW_MIC=1, USB capture channel 0 stays
+ * proc0 (unchanged) and channel 1 carries raw mic0 (PDM decimator output, no
+ * DSP applied) so the host can do its own echo cancellation against a signal
+ * that is still linearly correlated with what it played.
+ *
+ * appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT applies a saturating left shift
+ * (6.02 dB per step) to the raw channel before it is truncated to 16 bits;
+ * the raw mic bypasses the AGC and is much quieter than proc0. 0 = unity.
+ */
+#ifndef appconfRESPEAKER_LITE_USB_CH1_RAW_MIC
+#define appconfRESPEAKER_LITE_USB_CH1_RAW_MIC   1
+#endif
+#ifndef appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT
+#define appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT 0
+#endif
+
 /* Enable audio response output */
 #ifndef appconfAUDIO_PLAYBACK_ENABLED
 #define appconfAUDIO_PLAYBACK_ENABLED           1
