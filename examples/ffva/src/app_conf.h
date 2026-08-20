@@ -55,15 +55,20 @@
  * no unprocessed signal: the on-chip AEC removes just enough of the echo
  * correlation that a host-side linear canceller (e.g. WebRTC AEC3) can never
  * lock, while the on-chip AGC re-amplifies the residual it leaves behind.
+ * The raw layouts expose the PDM decimator outputs (no DSP applied) so the
+ * host can do its own echo cancellation against signals that are still
+ * linearly correlated with what it played.
  *
- * With appconfRESPEAKER_LITE_USB_CH1_RAW_MIC=1, USB capture channel 0 stays
- * proc0 (unchanged) and channel 1 carries raw mic0 (PDM decimator output, no
- * DSP applied) so the host can do its own echo cancellation against a signal
- * that is still linearly correlated with what it played.
+ *   STOCK:    ch0 = proc0, ch1 = proc0   (Seeed behaviour)
+ *   PROC_RAW: ch0 = proc0, ch1 = raw mic0
+ *   RAW_PAIR: ch0 = raw mic0, ch1 = raw mic1 (both capsules, sample-
+ *             synchronous, so the host can select/mix/beamform)
  *
  * appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT applies a saturating left shift
- * (6.02 dB per step) to the raw channel before it is truncated to 16 bits;
- * the raw mic bypasses the AGC and is much quieter than proc0. 0 = unity.
+ * (6.02 dB per step) to every raw channel before it is truncated to 16 bits;
+ * the raw mics bypass the AGC and are much quieter than proc0. 0 = unity.
+ * The same shift is applied to both mics of RAW_PAIR so the pair stays
+ * amplitude-matched for any host-side spatial processing.
  *
  * Default 3 (+18 dB) was set from on-device measurement (unity build, 1 kHz
  * through the Lite's own speaker, ReSpeaker Lite on an Orange Pi 5B):
@@ -77,8 +82,11 @@
  *   CMAKE_C_FLAGS, so this cannot be overridden with -DCMAKE_C_FLAGS; edit
  *   the value here.
  */
-#ifndef appconfRESPEAKER_LITE_USB_CH1_RAW_MIC
-#define appconfRESPEAKER_LITE_USB_CH1_RAW_MIC   1
+#define appconfRESPEAKER_LITE_USB_LAYOUT_STOCK    0
+#define appconfRESPEAKER_LITE_USB_LAYOUT_PROC_RAW 1
+#define appconfRESPEAKER_LITE_USB_LAYOUT_RAW_PAIR 2
+#ifndef appconfRESPEAKER_LITE_USB_LAYOUT
+#define appconfRESPEAKER_LITE_USB_LAYOUT appconfRESPEAKER_LITE_USB_LAYOUT_RAW_PAIR
 #endif
 #ifndef appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT
 #define appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT 3
