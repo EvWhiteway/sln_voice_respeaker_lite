@@ -92,6 +92,16 @@
 #define appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT 3
 #endif
 
+/* AGC profile for the processed (proc0) output. AGC_PROFILE_ASR (stock)
+ * maximises level for speech recognition and has loss control disabled, so
+ * it re-amplifies whatever echo residual the AEC leaves. For human-to-human
+ * use AGC_PROFILE_XCV_COMMS enables loss control: the AGC attenuates the
+ * capture path while the far end is active unless near-end speech is
+ * detected (gates on the AEC's correlation factor and reference power). */
+#ifndef appconfAUDIO_PIPELINE_AGC_PROFILE
+#define appconfAUDIO_PIPELINE_AGC_PROFILE       AGC_PROFILE_ASR
+#endif
+
 /* Enable audio response output */
 #ifndef appconfAUDIO_PLAYBACK_ENABLED
 #define appconfAUDIO_PLAYBACK_ENABLED           1

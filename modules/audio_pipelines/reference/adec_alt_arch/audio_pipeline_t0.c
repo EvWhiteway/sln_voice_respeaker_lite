@@ -134,7 +134,7 @@ static void initialize_pipeline_stages(void)
 
     ns_init(&ns_stage_state.state);
 
-    agc_init(&agc_stage_state.state, &AGC_PROFILE_ASR);
+    agc_init(&agc_stage_state.state, &appconfAUDIO_PIPELINE_AGC_PROFILE);
     agc_stage_state.md = agc_meta_data_init();
 }
 

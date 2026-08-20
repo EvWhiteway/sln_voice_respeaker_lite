@@ -13,6 +13,12 @@ set(FFVA_UA_COMPILE_DEFINITIONS
     appconfI2S_MODE=appconfI2S_MODE_MASTER
 
     MIC_ARRAY_CONFIG_MCLK_FREQ=24576000
+
+    # A/B experiment branch (image B, all-XMOS): proc0 on USB ch0 with the
+    # COMMS AGC (loss control on), raw mic0 kept on ch1 for measurement.
+    # Pair with the example_ffva_ua_adec target (2-mic AEC, IC always on).
+    appconfRESPEAKER_LITE_USB_LAYOUT=appconfRESPEAKER_LITE_USB_LAYOUT_PROC_RAW
+    appconfAUDIO_PIPELINE_AGC_PROFILE=AGC_PROFILE_XCV_COMMS
 )
 
 if(DEBUG_FFVA_USB_MIC_INPUT)
