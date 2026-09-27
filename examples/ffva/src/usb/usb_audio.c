@@ -119,6 +119,28 @@ typedef int32_t samp_t;
 #error CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX must be either 2 or 4
 #endif
 
+#if RESPEAKER_LITE
+/* Fetch sample i of raw mic `mic` from the flat frame_data_t (see
+ * audio_pipeline_dsp.h): slot 0 proc0, 1 proc1, 2 ref0, 3 ref1, 4 mic0,
+ * 5 mic1, each appconfAUDIO_PIPELINE_FRAME_ADVANCE samples long. Applies the
+ * configured saturating gain shift before the 32 -> 16 bit truncation. */
+static inline samp_t raw_mic_usb_sample(const int32_t *frame_buf_ptr, int i, int mic, int src_32_shift)
+{
+    int32_t raw = frame_buf_ptr[i + (appconfAUDIO_PIPELINE_FRAME_ADVANCE * (4 + mic))];
+#if appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT > 0
+    const int32_t lim = INT32_MAX >> appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT;
+    if (raw > lim) {
+        raw = INT32_MAX;
+    } else if (raw < -lim - 1) {
+        raw = INT32_MIN;
+    } else {
+        raw <<= appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT;
+    }
+#endif
+    return raw >> src_32_shift;
+}
+#endif
+
 void usb_audio_send(rtos_intertile_t *intertile_ctx,
                     size_t frame_count,
                     int32_t **frame_buffers,
@@ -140,27 +162,16 @@ void usb_audio_send(rtos_intertile_t *intertile_ctx,
     for(int ch=0; ch<CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX; ch++) {
         for (int i=0; i<appconfAUDIO_PIPELINE_FRAME_ADVANCE; i++) {
             if (ch < num_chans) {
-#if RESPEAKER_LITE
-#if appconfRESPEAKER_LITE_USB_CH1_RAW_MIC
-                /* frame_buffers is a flat frame_data_t (see audio_pipeline_dsp.h):
-                 * slot 0 proc0, 1 proc1, 2 ref0, 3 ref1, 4 mic0, 5 mic1,
-                 * each appconfAUDIO_PIPELINE_FRAME_ADVANCE samples long.
-                 * USB ch0 = proc0 (full pipeline), USB ch1 = raw mic0 (no DSP). */
+#if RESPEAKER_LITE && (appconfUSB_AUDIO_MODE == appconfUSB_AUDIO_RELEASE)
+#if appconfRESPEAKER_LITE_USB_LAYOUT == appconfRESPEAKER_LITE_USB_LAYOUT_RAW_PAIR
+                /* USB ch0 = raw mic0, ch1 = raw mic1 (no DSP, sample-synchronous) */
+                usb_audio_in_frame[i][ch] = raw_mic_usb_sample(frame_buf_ptr, i, ch, src_32_shift);
+#elif appconfRESPEAKER_LITE_USB_LAYOUT == appconfRESPEAKER_LITE_USB_LAYOUT_PROC_RAW
+                /* USB ch0 = proc0 (full pipeline), USB ch1 = raw mic0 (no DSP) */
                 if (ch == 0) {
                     usb_audio_in_frame[i][ch] = frame_buf_ptr[i] >> src_32_shift;
                 } else {
-                    int32_t raw = frame_buf_ptr[i + (appconfAUDIO_PIPELINE_FRAME_ADVANCE * 4)];
-#if appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT > 0
-                    const int32_t lim = INT32_MAX >> appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT;
-                    if (raw > lim) {
-                        raw = INT32_MAX;
-                    } else if (raw < -lim - 1) {
-                        raw = INT32_MIN;
-                    } else {
-                        raw <<= appconfRESPEAKER_LITE_RAW_MIC_GAIN_SHIFT;
-                    }
-#endif
-                    usb_audio_in_frame[i][ch] = raw >> src_32_shift;
+                    usb_audio_in_frame[i][ch] = raw_mic_usb_sample(frame_buf_ptr, i, 0, src_32_shift);
                 }
 #else
                 // Stock Seeed behaviour: proc0 on both USB channels
