@@ -82,6 +82,39 @@ void i2s_slave_intertile(void *args) {
 }
 #endif
 
+#if appconfMIC_ARRAY_RATE_MULTIPLIER > 1
+#include "src_ff3_fir_coefs.h"
+
+#if appconfMIC_ARRAY_RATE_MULTIPLIER != 3
+#error The mic array decimation path only implements a 3:1 (48 kHz -> 16 kHz) ratio
+#endif
+
+/*
+ * Decimate one pipeline frame of sample-interleaved mic array output
+ * ([appconfMIC_ARRAY_FRAME_ADVANCE][channels], mic array rate) 3:1 into the
+ * channel-major pipeline mic slots ([channels][frame_count], 16 kHz) with
+ * lib_src's 96-tap VPU polyphase filter (0.01 dB ripple, 70 dB stopband).
+ * Raw mic samples sit far below the filter's -3.5 dBFS overflow limit.
+ */
+static void mic_frame_decimate(const int32_t (*mic_frame)[appconfAUDIO_PIPELINE_CHANNELS],
+                               int32_t *pipeline_mics,
+                               size_t frame_count)
+{
+    static int32_t __attribute__((aligned(8))) ds_state[appconfAUDIO_PIPELINE_CHANNELS][SRC_FF3_FIR_NUM_PHASES][SRC_FF3_FIR_TAPS_PER_PHASE];
+
+    for (size_t i = 0; i < frame_count; i++) {
+        for (int ch = 0; ch < appconfAUDIO_PIPELINE_CHANNELS; ch++) {
+            int32_t samp_in[3] = {
+                mic_frame[3 * i + 0][ch],
+                mic_frame[3 * i + 1][ch],
+                mic_frame[3 * i + 2][ch],
+            };
+            src_ff3_96t_ds(samp_in, &pipeline_mics[ch * frame_count + i], src_ff3_fir_coefs, ds_state[ch]);
+        }
+    }
+}
+#endif
+
 void audio_pipeline_input(void *input_app_data,
                         int32_t **input_audio_frames,
                         size_t ch_count,
@@ -90,17 +123,32 @@ void audio_pipeline_input(void *input_app_data,
     (void) input_app_data;
     int32_t **mic_ptr = (int32_t **)(input_audio_frames + (2 * frame_count));
 
+#if appconfMIC_ARRAY_RATE_MULTIPLIER > 1
+    /*
+     * The mics run at appconfMIC_ARRAY_SAMPLE_RATE. The driver is in
+     * sample-channel format ([frame][mic]); pull a pipeline frame's worth of
+     * mic frames here, ship the raw wideband pair to the USB tile and give the
+     * 16 kHz pipeline a decimated copy.
+     */
+    static int32_t mic_frame[appconfMIC_ARRAY_FRAME_ADVANCE][appconfAUDIO_PIPELINE_CHANNELS];
+    int32_t **mic_rx_ptr = (int32_t **) mic_frame;
+    const size_t mic_rx_count = appconfMIC_ARRAY_FRAME_ADVANCE;
+#else
+    int32_t **mic_rx_ptr = mic_ptr;
+    const size_t mic_rx_count = frame_count;
+#endif
+
     static int flushed;
     while (!flushed) {
         size_t received;
         received = rtos_mic_array_rx(mic_array_ctx,
-                                     mic_ptr,
-                                     frame_count,
+                                     mic_rx_ptr,
+                                     mic_rx_count,
                                      0);
         if (received == 0) {
             rtos_mic_array_rx(mic_array_ctx,
-                              mic_ptr,
-                              frame_count,
+                              mic_rx_ptr,
+                              mic_rx_count,
                               portMAX_DELAY);
             flushed = 1;
         }
@@ -113,9 +161,18 @@ void audio_pipeline_input(void *input_app_data,
      * receive all zeros if no frame is available yet.
      */
     rtos_mic_array_rx(mic_array_ctx,
-                      mic_ptr,
-                      frame_count,
+                      mic_rx_ptr,
+                      mic_rx_count,
                       portMAX_DELAY);
+
+#if appconfMIC_ARRAY_RATE_MULTIPLIER > 1
+#if appconfUSB_ENABLED && RESPEAKER_LITE
+    usb_audio_raw_mic_send(intertile_usb_audio_ctx,
+                           &mic_frame[0][0],
+                           appconfMIC_ARRAY_FRAME_ADVANCE);
+#endif
+    mic_frame_decimate(mic_frame, (int32_t *) mic_ptr, frame_count);
+#endif
 
 #if appconfUSB_ENABLED
     int32_t **usb_mic_audio_frame = NULL;

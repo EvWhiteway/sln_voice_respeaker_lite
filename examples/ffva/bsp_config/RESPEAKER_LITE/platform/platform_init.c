@@ -224,7 +224,14 @@ static void mics_init(void)
     rtos_mic_array_init(
             mic_array_ctx,
             (1 << appconfPDM_MIC_IO_CORE),
+#if appconfMIC_ARRAY_RATE_MULTIPLIER > 1
+            /* The mics run faster than the pipeline: the driver delivers short
+             * sample-interleaved frames and the app pulls a pipeline frame's
+             * worth (appconfMIC_ARRAY_FRAME_ADVANCE) per call. */
+            RTOS_MIC_ARRAY_SAMPLE_CHANNEL);
+#else
             RTOS_MIC_ARRAY_CHANNEL_SAMPLE);
+#endif
     rtos_mic_array_rpc_host_init(
             mic_array_ctx,
             &mic_array_rpc_config,
