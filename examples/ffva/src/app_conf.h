@@ -29,6 +29,7 @@
 #define appconfWW_SAMPLES_PORT         6
 #define appconfAUDIOPIPELINE_PORT      7
 #define appconfI2S_OUTPUT_SLAVE_PORT   8
+#define appconfUSB_RAW_MIC_PORT        9
 
 #ifndef appconfINTENT_ENGINE_READY_SYNC_PORT
 #define appconfINTENT_ENGINE_READY_SYNC_PORT      18
@@ -45,8 +46,32 @@
 #define appconfPDM_CLOCK_FREQUENCY              MIC_ARRAY_CONFIG_PDM_FREQ
 #define appconfAUDIO_PIPELINE_SAMPLE_RATE       16000
 #define appconfAUDIO_PIPELINE_CHANNELS          MIC_ARRAY_CONFIG_MIC_COUNT
-/* If in channel sample format, appconfAUDIO_PIPELINE_FRAME_ADVANCE == MIC_ARRAY_CONFIG_SAMPLES_PER_FRAME*/
+
+/* PDM microphone capture rate.
+ *
+ * The XMOS voice pipeline always runs at appconfAUDIO_PIPELINE_SAMPLE_RATE
+ * (16 kHz, 240-sample frames). The mics may be decimated at 3x that rate
+ * (48 kHz) instead: the raw wideband pair then goes straight to the USB
+ * capture interface (ReSpeaker Lite RAW_PAIR layout) and the pipeline is fed
+ * a 3:1 decimated copy (main.c audio_pipeline_input). The board target sets
+ * appconfMIC_ARRAY_SAMPLE_RATE; it is 16 kHz unless it says otherwise.
+ */
+#ifndef appconfMIC_ARRAY_SAMPLE_RATE
+#define appconfMIC_ARRAY_SAMPLE_RATE            appconfAUDIO_PIPELINE_SAMPLE_RATE
+#endif
+#define appconfMIC_ARRAY_RATE_MULTIPLIER        (appconfMIC_ARRAY_SAMPLE_RATE / appconfAUDIO_PIPELINE_SAMPLE_RATE)
+
+#if appconfMIC_ARRAY_RATE_MULTIPLIER == 1
+/* Channel-sample format: one mic array frame is one pipeline frame, so
+ * appconfAUDIO_PIPELINE_FRAME_ADVANCE == MIC_ARRAY_CONFIG_SAMPLES_PER_FRAME */
 #define appconfAUDIO_PIPELINE_FRAME_ADVANCE     MIC_ARRAY_CONFIG_SAMPLES_PER_FRAME
+#else
+/* Sample-channel format: the mic array delivers short frames and the app pulls
+ * appconfMIC_ARRAY_FRAME_ADVANCE samples per pipeline frame */
+#define appconfAUDIO_PIPELINE_FRAME_ADVANCE     240
+#endif
+/* Mic samples per pipeline frame at the mic array rate */
+#define appconfMIC_ARRAY_FRAME_ADVANCE          (appconfAUDIO_PIPELINE_FRAME_ADVANCE * appconfMIC_ARRAY_RATE_MULTIPLIER)
 
 /* ReSpeaker Lite USB capture channel layout.
  *

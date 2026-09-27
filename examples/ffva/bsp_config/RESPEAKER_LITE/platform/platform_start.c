@@ -131,10 +131,20 @@ static void mics_start(void)
     rtos_mic_array_rpc_config(mic_array_ctx, appconfMIC_ARRAY_RPC_PORT, appconfMIC_ARRAY_RPC_PRIORITY);
 
 #if ON_TILE(MICARRAY_TILE_NO)
+#if appconfMIC_ARRAY_RATE_MULTIPLIER > 1
+    /* The ring must hold one full pipeline pull (appconfMIC_ARRAY_FRAME_ADVANCE)
+     * plus the mic frames the ISR can add while the reader copies it out, with
+     * the same 2x margin the 16 kHz build has. */
+    rtos_mic_array_start(
+            mic_array_ctx,
+            2 * appconfMIC_ARRAY_FRAME_ADVANCE + 4 * MIC_ARRAY_CONFIG_SAMPLES_PER_FRAME,
+            appconfPDM_MIC_INTERRUPT_CORE);
+#else
     rtos_mic_array_start(
             mic_array_ctx,
             2 * MIC_ARRAY_CONFIG_SAMPLES_PER_FRAME,
             appconfPDM_MIC_INTERRUPT_CORE);
+#endif
 #endif
 }
 

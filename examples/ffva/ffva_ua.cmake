@@ -3,7 +3,23 @@ option(DEBUG_FFVA_USB_MIC_INPUT        "Enable ffva usb mic input"  OFF)
 option(DEBUG_FFVA_USB_MIC_INPUT_PIPELINE_BYPASS  "Enable ffva usb mic input and audio pipeline bypass"  OFF)
 option(DEBUG_FFVA_USB_VERBOSE_OUTPUT        "Enable ffva usb with mic, ref, and proc output"  OFF)
 
-set(FFVA_UA_BOARD_TARGET sln_voice::app::ffva::respeaker_lite)
+# PDM microphone capture rate for the ffva_ua (ReSpeaker Lite USB) targets.
+#   48000: wideband capture. The mics are decimated to 48 kHz, both raw capsules
+#          go to the host at 48 kHz (RAW_PAIR layout, USB interface at 48 kHz in
+#          both directions) and the on-chip 16 kHz pipeline is fed a 3:1
+#          decimated copy. Playback is still 16 kHz (host 48 kHz -> ds3 -> DAC).
+#   16000: stock. 16 kHz mics, USB at 16 kHz, any USB layout.
+set(FFVA_UA_MIC_SAMPLE_RATE 48000 CACHE STRING "PDM mic capture rate for the ffva_ua targets: 48000 (wideband raw mics on USB) or 16000 (stock)")
+set_property(CACHE FFVA_UA_MIC_SAMPLE_RATE PROPERTY STRINGS 16000 48000)
+
+if(FFVA_UA_MIC_SAMPLE_RATE EQUAL 48000)
+    set(FFVA_UA_BOARD_TARGET sln_voice::app::ffva::respeaker_lite_mic48k)
+elseif(FFVA_UA_MIC_SAMPLE_RATE EQUAL 16000)
+    set(FFVA_UA_BOARD_TARGET sln_voice::app::ffva::respeaker_lite)
+else()
+    message(FATAL_ERROR "FFVA_UA_MIC_SAMPLE_RATE must be 16000 or 48000 (got '${FFVA_UA_MIC_SAMPLE_RATE}')")
+endif()
+
 set(FFVA_UA_BOOT_PARTITION_SIZE 0x200000)
 set(FFVA_UA_COMPILE_DEFINITIONS
     ${APP_COMPILE_DEFINITIONS}
@@ -14,6 +30,12 @@ set(FFVA_UA_COMPILE_DEFINITIONS
 
     MIC_ARRAY_CONFIG_MCLK_FREQ=24576000
 )
+
+if(FFVA_UA_MIC_SAMPLE_RATE EQUAL 48000)
+    # The raw mics are sent at the mic array rate, so the USB interface runs at
+    # 48 kHz too (one UAC2 clock is shared by capture and playback).
+    list(APPEND FFVA_UA_COMPILE_DEFINITIONS appconfUSB_AUDIO_SAMPLE_RATE=48000)
+endif()
 
 if(DEBUG_FFVA_USB_MIC_INPUT)
     list(APPEND FFVA_UA_COMPILE_DEFINITIONS appconfMIC_SRC_DEFAULT=appconfMIC_SRC_USB)
